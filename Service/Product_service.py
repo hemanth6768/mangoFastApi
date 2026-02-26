@@ -12,3 +12,6 @@ def getall_products_service(db: Session):
 
 def updateproduct_service(product_id: int, product, db: Session):
     return product_repository.update_product(product_id, product, db)
+
+def productdelete_service(productid , db: Session):
+    return product_repository.delete_product(productid,db)

@@ -38,7 +38,17 @@ def update_product(product_id: int, product, db: Session):
 
 
 
+def delete_product(productid: int, db: Session):
 
+    db_product = db.get(Product, productid)
+
+    if not db_product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    db.delete(db_product)
+    db.commit()
+
+    return {"message": "Product deleted successfully"}
 
 
 
