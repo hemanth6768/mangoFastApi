@@ -1,16 +1,17 @@
 from fastapi import FastAPI
 from Routes.ProductRoute import router as product_route
 from Routes.OrderRoute import router as order_route
-from models import Cart,CartItem,Product,Order,OrderItem
+from Routes.authroute import router as auth_route
+from models import Cart,CartItem,Product,Order,OrderItem,user,userrole,useraddress,rolepermission,role,permission
 from fastapi.middleware.cors import CORSMiddleware
 from Database.database import Base , engine
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
 
-
+app.mount("/Static", StaticFiles(directory="Static"), name="static")
 origins = [
     "http://localhost:8080"   # React dev
-    
 ]
 
 app.add_middleware(
@@ -24,5 +25,6 @@ app.add_middleware(
 
 app.include_router(product_route)
 app.include_router(order_route)
+app.include_router(auth_route)
 
 Base.metadata.create_all(bind=engine)
