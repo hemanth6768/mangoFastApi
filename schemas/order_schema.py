@@ -5,6 +5,8 @@ from datetime import datetime
 from enum import Enum
 
 
+# ─── Request Schemas ──────────────────────────────────────────────────────────
+
 class OrderItemRequest(BaseModel):
     product_id: int = Field(validation_alias=AliasChoices("productId", "product_id"))
     quantity: int
@@ -52,7 +54,14 @@ class OrderStatusEnum(str, Enum):
 
 class OrderStatusUpdateRequest(BaseModel):
     status: OrderStatusEnum
+    delivered_by: Optional[str] = None  # optionally assign delivery person on status change
 
+
+class AssignDeliveryPersonRequest(BaseModel):
+    delivered_by: str
+
+
+# ─── Response Schemas ─────────────────────────────────────────────────────────
 
 class OrderResponse(BaseModel):
     order_id: int
@@ -81,9 +90,11 @@ class OrderAdminResponse(BaseModel):
     customer_phone: str
     customer_address: str
     customer_appartment_name: Optional[str]
+    nearby_area: Optional[str]
     total_amount: Decimal
     status: str
     created_at: datetime
+    delivered_by: Optional[str]
     items: List[OrderItemAdminResponse]
 
     class Config:
@@ -99,6 +110,21 @@ class AddressPrefillResponse(BaseModel):
     apartment_name: Optional[str]
     nearby_area: Optional[str]
     is_default: bool
+
+    class Config:
+        from_attributes = True
+
+
+class OrderHistoryItemResponse(BaseModel):
+    id: int
+    total_amount: Decimal
+    status: str
+    created_at: datetime
+    nearby_area: Optional[str]
+    customer_address: str
+    customer_appartment_name: Optional[str]
+    delivered_by: Optional[str]
+    items: List[OrderItemAdminResponse]
 
     class Config:
         from_attributes = True
@@ -144,14 +170,28 @@ class DailyRevenueResponse(BaseModel):
         from_attributes = True
 
 
-class OrderHistoryItemResponse(BaseModel):
+# ─── Delivery Person Schemas ──────────────────────────────────────────────────
+
+class DeliveryPersonSummaryResponse(BaseModel):
+    delivered_by: str
+    total_orders: int
+    total_revenue: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class DeliveryPersonOrderResponse(BaseModel):
     id: int
+    customer_name: str
+    customer_phone: str
+    customer_address: str
+    customer_appartment_name: Optional[str]
+    nearby_area: Optional[str]
     total_amount: Decimal
     status: str
     created_at: datetime
-    nearby_area: Optional[str]
-    customer_address: str
-    customer_appartment_name: Optional[str]
+    delivered_by: Optional[str]
     items: List[OrderItemAdminResponse]
 
     class Config:

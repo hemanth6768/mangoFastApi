@@ -5,7 +5,9 @@ from schemas.order_schema import (
     OrderStatusUpdateRequest, OrderStatusEnum,
     AddressPrefillResponse, RevenueResponse,
     ProductSalesResponse, OrderStatusSummaryResponse,
-    DailyRevenueResponse,OrderHistoryItemResponse
+    DailyRevenueResponse, OrderHistoryItemResponse,
+    DeliveryPersonSummaryResponse, DeliveryPersonOrderResponse,
+    AssignDeliveryPersonRequest,
 )
 from Service import order_service
 from typing import List, Optional
@@ -46,6 +48,7 @@ def get_filtered_orders(
     status: Optional[OrderStatusEnum] = Query(None, description="Filter by order status"),
     from_date: Optional[date] = Query(None, description="From date YYYY-MM-DD"),
     to_date: Optional[date] = Query(None, description="To date YYYY-MM-DD"),
+    delivered_by: Optional[str] = Query(None, description="Filter by delivery person name"),
     db: Session = Depends(get_db),
 ):
     return order_service.get_filtered_orders_service(
@@ -53,6 +56,7 @@ def get_filtered_orders(
         status=status.value if status else None,
         from_date=from_date,
         to_date=to_date,
+        delivered_by=delivered_by,
     )
 
 
@@ -62,7 +66,62 @@ def update_order_status(
     status_request: OrderStatusUpdateRequest,
     db: Session = Depends(get_db),
 ):
+    """
+    Update order status.
+    Optionally pass delivered_by to assign the delivery person in the same call.
+    Example body: { "status": "delivered", "delivered_by": "Ravi" }
+    """
     return order_service.update_order_status_service(order_id, status_request, db)
+
+
+# ─── Delivery Person ──────────────────────────────────────────────────────────
+
+@router.put("/{order_id}/assign-delivery", response_model=OrderAdminResponse)
+def assign_delivery_person(
+    order_id: int,
+    body: AssignDeliveryPersonRequest,
+    db: Session = Depends(get_db),
+):
+    """
+    Assign or reassign a delivery person to an order at any time.
+    Body: { "delivered_by": "Ravi" }
+    """
+    return order_service.assign_delivery_person_service(order_id, body.delivered_by, db)
+
+
+@router.get("/admin/delivery-persons", response_model=List[str])
+def get_all_delivery_persons(db: Session = Depends(get_db)):
+    """
+    Returns a distinct list of all delivery person names ever recorded.
+    Useful for populating dropdowns in the admin UI.
+    """
+    return order_service.get_all_delivery_persons_service(db)
+
+
+@router.get("/admin/delivery-summary", response_model=List[DeliveryPersonSummaryResponse])
+def get_delivery_summary(db: Session = Depends(get_db)):
+    """
+    Per delivery person (only delivered orders):
+    - total_orders  → how many orders they delivered
+    - total_revenue → total order value they delivered (use for payout calculation)
+    """
+    return order_service.get_delivery_person_summary_service(db)
+
+
+@router.get("/admin/delivery/{delivered_by}", response_model=List[DeliveryPersonOrderResponse])
+def get_orders_by_delivery_person(
+    delivered_by: str,
+    from_date: Optional[date] = Query(None, description="From date YYYY-MM-DD"),
+    to_date: Optional[date] = Query(None, description="To date YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """
+    All orders assigned to a specific delivery person.
+    Supports optional date range filtering for period-wise payout reports.
+    """
+    return order_service.get_orders_by_delivery_person_service(
+        delivered_by, db, from_date, to_date
+    )
 
 
 # ─── Admin Analytics ──────────────────────────────────────────────────────────
@@ -95,6 +154,7 @@ def get_daily_revenue(
     return order_service.get_daily_revenue_service(db, from_date, to_date)
 
 
+# ─── User Orders ──────────────────────────────────────────────────────────────
 
 @router.get("/myorders/{user_id}", response_model=List[OrderHistoryItemResponse])
 def get_user_orders(user_id: int, db: Session = Depends(get_db)):

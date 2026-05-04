@@ -6,6 +6,7 @@ from models.Product import Product
 from models.useraddress import UserAddress
 from fastapi import HTTPException
 from datetime import datetime, timedelta, timezone, date, time
+from typing import Optional
 
 
 # ─── Checkout ─────────────────────────────────────────────────────────────────
@@ -26,10 +27,8 @@ def create_order(order_request, db: Session):
             )
 
             if existing_address:
-                # Returning user — reuse existing address
                 address_id = existing_address.id
             else:
-                # First time — save new address into user_addresses
                 new_address = UserAddress(
                     user_id=user_id,
                     label=customer.label or "Home",
@@ -55,6 +54,7 @@ def create_order(order_request, db: Session):
             customer_appartment_name=customer.appartment_name,
             nearby_area=customer.nearby_area,
             status="pending",
+            delivered_by=None,          # always null at order creation
             created_at=datetime.now(timezone.utc),
             total_amount=0,
         )
@@ -141,11 +141,15 @@ def get_filtered_orders(
     status: str = None,
     from_date: date = None,
     to_date: date = None,
+    delivered_by: str = None,
 ):
     query = db.query(Order).options(joinedload(Order.items))
 
     if status:
         query = query.filter(Order.status == status)
+
+    if delivered_by:
+        query = query.filter(Order.delivered_by == delivered_by)
 
     if from_date:
         query = query.filter(
@@ -160,14 +164,104 @@ def get_filtered_orders(
     return query.order_by(Order.created_at.desc()).all()
 
 
-def update_order_status(order_id: int, status: str, db: Session):
+def update_order_status(order_id: int, status: str, delivered_by: Optional[str], db: Session):
     order = db.get(Order, order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Order not found")
     order.status = status
+    if delivered_by is not None:
+        order.delivered_by = delivered_by
     db.commit()
     db.refresh(order)
     return order
+
+
+# ─── Delivery Person ──────────────────────────────────────────────────────────
+
+def assign_delivery_person(order_id: int, delivered_by: str, db: Session):
+    """Assign or reassign a delivery person to an order."""
+    order = db.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+    order.delivered_by = delivered_by
+    db.commit()
+    db.refresh(order)
+    return order
+
+
+def get_delivery_person_summary(db: Session):
+    """
+    Per delivery person — total delivered orders + revenue.
+    Only counts status = 'delivered' with delivered_by set.
+    Use this for payout calculations.
+    """
+    results = (
+        db.query(
+            Order.delivered_by,
+            func.count(Order.id).label("total_orders"),
+            func.sum(Order.total_amount).label("total_revenue"),
+        )
+        .filter(
+            Order.status == "delivered",
+            Order.delivered_by.isnot(None),
+        )
+        .group_by(Order.delivered_by)
+        .order_by(func.count(Order.id).desc())
+        .all()
+    )
+
+    return [
+        {
+            "delivered_by": r.delivered_by,
+            "total_orders": r.total_orders,
+            "total_revenue": r.total_revenue or 0,
+        }
+        for r in results
+    ]
+
+
+def get_orders_by_delivery_person(
+    delivered_by: str,
+    db: Session,
+    from_date: date = None,
+    to_date: date = None,
+):
+    """All orders assigned to a specific delivery person, with optional date filter."""
+    query = (
+        db.query(Order)
+        .options(joinedload(Order.items))
+        .filter(Order.delivered_by == delivered_by)
+    )
+
+    if from_date:
+        query = query.filter(
+            Order.created_at >= datetime.combine(from_date, time.min)
+        )
+    if to_date:
+        query = query.filter(
+            Order.created_at <= datetime.combine(to_date, time.max)
+        )
+
+    orders = query.order_by(Order.created_at.desc()).all()
+
+    if not orders:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No orders found for delivery person: {delivered_by}"
+        )
+    return orders
+
+
+def get_all_delivery_persons(db: Session):
+    """Return a distinct list of all delivery person names ever assigned."""
+    results = (
+        db.query(Order.delivered_by)
+        .filter(Order.delivered_by.isnot(None))
+        .distinct()
+        .order_by(Order.delivered_by)
+        .all()
+    )
+    return [r.delivered_by for r in results]
 
 
 # ─── Admin Analytics ──────────────────────────────────────────────────────────
@@ -276,6 +370,7 @@ def get_daily_revenue(
         }
         for r in results
     ]
+
 
 def get_orders_by_user(user_id: int, db: Session):
     orders = (

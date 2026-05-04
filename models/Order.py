@@ -9,7 +9,6 @@ class Order(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    # ✅ ADD THESE TWO (CRITICAL FIX)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     address_id = Column(Integer, ForeignKey("user_addresses.id"), nullable=True)
 
@@ -21,13 +20,15 @@ class Order(Base):
     nearby_area = Column(String(200), nullable=True)
 
     total_amount = Column(Numeric(10, 2), nullable=False)
-    status = Column(String(50), default="confirmed")
+    status = Column(String(50), default="pending")
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    # ✅ ADD THESE RELATIONSHIPS
+    # Delivery person who delivered this order
+    delivered_by = Column(String(100), nullable=True)
+
+    # Relationships
     user = relationship("User", back_populates="orders")
     address = relationship("UserAddress", back_populates="orders")
-
     items = relationship(
         "OrderItem",
         back_populates="order",
