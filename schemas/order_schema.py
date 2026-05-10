@@ -196,3 +196,21 @@ class DeliveryPersonOrderResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+class DeliveryPersonProductBreakdownResponse(BaseModel):
+    product_name: str
+    total_quantity: int
+    total_revenue: Decimal
+
+    class Config:
+        from_attributes = True
+
+
+class DeliveryPersonDetailResponse(BaseModel):
+    delivered_by: str
+    total_orders: int
+    total_revenue: Decimal
+    products: List[DeliveryPersonProductBreakdownResponse]
+
+    class Config:
+        from_attributes = True

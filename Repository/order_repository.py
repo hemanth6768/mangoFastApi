@@ -7,6 +7,7 @@ from models.useraddress import UserAddress
 from fastapi import HTTPException
 from datetime import datetime, timedelta, timezone, date, time
 from typing import Optional
+from decimal import Decimal
 
 
 # ─── Checkout ─────────────────────────────────────────────────────────────────
@@ -386,3 +387,57 @@ def get_orders_by_user(user_id: int, db: Session):
             detail="No orders found for this user"
         )
     return orders
+
+
+def get_delivery_person_product_breakdown(
+    delivered_by: str,
+    db: Session,
+    from_date: date = None,
+    to_date: date = None,
+):
+    query = (
+        db.query(Order)
+        .options(joinedload(Order.items))
+        .filter(
+            Order.delivered_by == delivered_by,
+            Order.status == "delivered",
+        )
+    )
+
+    if from_date:
+        query = query.filter(Order.created_at >= datetime.combine(from_date, time.min))
+    if to_date:
+        query = query.filter(Order.created_at <= datetime.combine(to_date, time.max))
+
+    orders = query.all()
+
+    if not orders:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No delivered orders found for: {delivered_by}"
+        )
+
+    # Aggregate products in Python
+    product_map = {}
+    total_revenue = 0
+    for order in orders:
+        total_revenue += order.total_amount
+        for item in order.items:
+            if item.product_name not in product_map:
+                product_map[item.product_name] = {"total_quantity": 0, "total_revenue": Decimal(0)}
+            product_map[item.product_name]["total_quantity"] += item.quantity
+            product_map[item.product_name]["total_revenue"] += item.price * item.quantity
+
+    return {
+        "delivered_by": delivered_by,
+        "total_orders": len(orders),
+        "total_revenue": total_revenue,
+        "products": [
+            {
+                "product_name": name,
+                "total_quantity": data["total_quantity"],
+                "total_revenue": data["total_revenue"],
+            }
+            for name, data in sorted(product_map.items(), key=lambda x: x[1]["total_quantity"], reverse=True)
+        ],
+    }

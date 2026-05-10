@@ -11,7 +11,7 @@ app = FastAPI()
 
 app.mount("/Static", StaticFiles(directory="Static"), name="static")
 origins = [
-    "http://localhost:8080"   # React dev
+    "http://localhost:8081"   # React dev
 ]
 
 app.add_middleware(

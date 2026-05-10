@@ -100,3 +100,13 @@ def get_daily_revenue_service(
 
 def get_orders_by_user_service(user_id: int, db: Session):
     return order_repository.get_orders_by_user(user_id, db)
+
+def get_delivery_person_product_breakdown_service(
+    delivered_by: str,
+    db: Session,
+    from_date: Optional[date] = None,
+    to_date: Optional[date] = None,
+):
+    return order_repository.get_delivery_person_product_breakdown(
+        delivered_by, db, from_date, to_date
+    )

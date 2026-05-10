@@ -7,7 +7,7 @@ from schemas.order_schema import (
     ProductSalesResponse, OrderStatusSummaryResponse,
     DailyRevenueResponse, OrderHistoryItemResponse,
     DeliveryPersonSummaryResponse, DeliveryPersonOrderResponse,
-    AssignDeliveryPersonRequest,
+    AssignDeliveryPersonRequest,DeliveryPersonDetailResponse
 )
 from Service import order_service
 from typing import List, Optional
@@ -160,3 +160,23 @@ def get_daily_revenue(
 def get_user_orders(user_id: int, db: Session = Depends(get_db)):
     """Order history for a specific user"""
     return order_service.get_orders_by_user_service(user_id, db)
+
+
+@router.get(
+    "/admin/delivery/{delivered_by}/product-breakdown",
+    response_model=DeliveryPersonDetailResponse
+)
+def get_delivery_person_product_breakdown(
+    delivered_by: str,
+    from_date: Optional[date] = Query(None, description="From date YYYY-MM-DD"),
+    to_date: Optional[date] = Query(None, description="To date YYYY-MM-DD"),
+    db: Session = Depends(get_db),
+):
+    """
+    Per delivery person — total orders, total revenue,
+    and a product-wise breakdown of quantity + revenue delivered.
+    Only counts status = 'delivered'.
+    """
+    return order_service.get_delivery_person_product_breakdown_service(
+        delivered_by, db, from_date, to_date
+    )
